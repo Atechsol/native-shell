@@ -1,8 +1,10 @@
 # Native Shell
 
-**A lightweight skin for macOS Terminal.app.** Modern keyboard editing, better history, a clean developer prompt and good-looking presets, without replacing your terminal.
+**A lightweight skin for macOS Terminal.app.** ⌘ editing, Tab-to-accept suggestions, better history, a clean Git prompt and good-looking skins, without replacing your terminal.
 
-Native Shell keeps you in the Terminal.app you already have. It configures Zsh, the Zsh line editor (ZLE) and Terminal.app profiles. It runs no background process, has no runtime dependencies, and everything it changes can be undone.
+![Native Shell in Terminal.app](docs/images/hero.png)
+
+Native Shell keeps you in the Terminal.app you already have. It installs a Terminal profile and a small set of Zsh settings. It runs no background process, has no runtime dependencies, and everything it changes can be undone.
 
 > **Status:** early development (v0.x). Things will change. Feedback and issues are welcome.
 
@@ -10,128 +12,169 @@ Native Shell keeps you in the Terminal.app you already have. It configures Zsh, 
 
 ## Install
 
-Pick whichever suits you. All three run the same installer and give the same result.
-
-**No dependencies (recommended)**
-```sh
-zsh <(curl -fsSL nativeshell.sh)
-```
-
-**With Node**
 ```sh
 npx nativeshell
 ```
 
-**With Homebrew**
+No Node? Use either of these instead. All three run the same installer.
+
 ```sh
+zsh <(curl -fsSL nativeshell.sh)
 brew install aleem/tap/nativeshell && nativeshell setup
 ```
 
 Setup will:
 1. Back up your `~/.zshrc` and Terminal.app preferences
 2. Ask you to pick a skin
-3. Add **one** guarded line to `~/.zshrc`
-4. Import the chosen Terminal.app profile
+3. Create `~/.config/nativeshell/`
+4. Import the skin into Terminal.app and make it the default
+5. Add **one** guarded line to `~/.zshrc`
 
-Open a new Terminal window when it finishes. To skip the questions, use `nativeshell setup --yes`.
+Open a new Terminal window when it finishes. Node is only used for the install. After that, everything is plain Zsh.
+
+---
+
+## Skins
+
+| Midnight (default) | Graphite |
+|---|---|
+| ![Midnight](docs/images/midnight.png) | ![Graphite](docs/images/graphite.png) |
+| Dark, cool blue | Dark, neutral |
+
+| Ember | Fjord |
+|---|---|
+| ![Ember](docs/images/ember.png) | ![Fjord](docs/images/fjord.png) |
+| Dark, warm | Dark, teal |
+
+| Paper |
+|---|
+| ![Paper](docs/images/paper.png) |
+| Light |
+
+```sh
+nativeshell skin            # list skins
+nativeshell skin ember      # switch
+```
+
+**Make your own:** open the [Skin Studio](https://aleem.github.io/nativeshell/skin-studio.html), adjust colors, font, cursor and opacity with a live preview, then copy the JSON into `skins/<name>.json`.
 
 ---
 
 ## Features
 
-**Keyboard editing** (done in ZLE, so it only applies at the shell prompt)
+**⌘ editing at the prompt**
 
 | Shortcut | Action |
 |---|---|
-| `⌥ ←` / `⌥ →` | Move by word |
 | `⌘ ←` / `⌘ →` | Start / end of line* |
-| `⌥ ⌫` | Delete previous word |
 | `⌘ ⌫` | Delete to start of line* |
-| `⇧` + any of the above | Select* |
+| `⇧ ←` / `⇧ →` | Select a character at a time |
+| `⇧⌘ ←` / `⇧⌘ →` | Select to start / end of line* |
+| `⌥ ←` / `⌥ →` | Move by word |
 
-\* Depends on what Terminal.app can pass through. Run `nativeshell doctor` to see what works on your Mac.
+\* Terminal.app doesn't pass ⌘ keys to the shell by default. Support for these is being tested; see [docs/feasibility.md](docs/feasibility.md).
 
 **Shell**
-- Better history search (prefix-matching `↑`/`↓`, incremental search)
+- **Tab to accept:** as you type, a matching past command appears in grey. Tab fills it in; otherwise Tab completes as normal.
+- Prefix history search with `↑` / `↓`, and history shared across tabs
 - Optional minimal prompt with Git branch and status
-- Each feature can be turned on or off on its own
+- Optional short aliases for coding agents (Claude Code, Codex, Gemini CLI and others)
 
-**Skins**
-- Developer presets for Terminal.app: font, colors, cursor, window size, scrollback
-- Your own changes survive updates
-
-**Coding agents**
-- Claude Code, Codex, Gemini CLI and other CLI agents run normally
-- Optional vendor-neutral launch aliases
+**Font size**
+- Default is 13 pt, set per skin and overridable in `config.json`
+- `⌘+` / `⌘−` / `⌘0` resize the current window (built into Terminal.app)
+- `nativeshell font 14` or `nativeshell font +1` changes the default
 
 ---
 
-## Usage
+## Configuration
+
+Everything lives in `~/.config/nativeshell/config.json`:
+
+```json
+{
+  "skin": "midnight",
+  "font": { "name": "SF Mono", "size": 13 },
+  "cursor": { "shape": "bar", "blink": true },
+  "window": { "columns": 120, "rows": 34 },
+
+  "features": {
+    "cmdKeys": true,
+    "shiftSelect": true,
+    "tabSuggest": true,
+    "historySearch": true,
+    "prompt": "minimal"
+  },
+
+  "history": { "size": 50000, "shareAcrossTabs": true },
+  "agents": { "cc": "claude", "cx": "codex" }
+}
+```
+
+Settings here override the skin, so your font size and preferences survive skin changes.
 
 ```sh
-nativeshell setup               # first-time setup (interactive)
-nativeshell theme list          # list available skins
-nativeshell theme apply <name>  # switch skin
-nativeshell config edit         # open ~/.nativeshell/config.json
-nativeshell apply               # re-apply config (safe to run repeatedly)
-nativeshell doctor              # show active config and detect problems
-nativeshell uninstall           # restore your backups and remove Native Shell
+nativeshell edit      # open config.json and apply when you close it
+nativeshell apply     # re-apply (safe to run repeatedly)
+```
+
+---
+
+## Commands
+
+```sh
+nativeshell                     # status: active skin and features
+nativeshell skin <name>         # switch skin
+nativeshell font <size|+1|-1>   # change default font size
+nativeshell on|off <feature>    # e.g. nativeshell off tabSuggest
+nativeshell edit                # edit config.json
+nativeshell doctor              # diagnose problems
+nativeshell uninstall           # restore backups and remove everything
 ```
 
 ---
 
 ## What it touches
 
-Native Shell tells you exactly what it changes:
-
-| File | Change |
+| Location | Change |
 |---|---|
-| `~/.zshrc` | One line that sources `~/.nativeshell/init.zsh` (skipped safely if missing or broken) |
-| `~/.nativeshell/` | Config, generated scripts, skins and backups |
-| Terminal.app preferences | An imported Native Shell profile, optionally set as the default |
+| `~/.zshrc` | One line that loads `~/.config/nativeshell/init.zsh` (skipped safely if missing or broken) |
+| `~/.config/nativeshell/` | Config, skins, Zsh files, the `nativeshell` command and backups |
+| Terminal.app preferences | An imported Native Shell profile, set as the default |
 
-No `sudo`. No daemons. No other files.
+No `sudo`. No background processes. No other files.
 
 ---
 
 ## Compatibility
 
 - **macOS** with Terminal.app and Zsh (the default shell since Catalina)
-- Works with SSH, tmux, Vim, Nano, less and other full-screen apps. Bindings only apply at the Zsh prompt.
+- SSH, tmux, Vim, Nano and less keep working normally. Editing features only apply at the Zsh prompt.
 - Designed to coexist with Oh My Zsh, Starship and Powerlevel10k (compatibility work in progress)
-
----
 
 ## Privacy
 
-- Your commands, history, environment variables and files are **never** sent anywhere.
-- Core features need no network connection.
-- No telemetry.
-
----
+Your commands, history, environment variables and files are **never** sent anywhere. No telemetry. Core features need no network connection.
 
 ## Principles
 
-- **Enhance the terminal you have, don't replace it.** No custom terminal engine (PTY) or renderer.
-- **Zero overhead.** Target is under 50 ms added to shell startup, and no background processes.
+- **Enhance the terminal you have, don't replace it.** No custom terminal engine or renderer.
+- **Lightweight.** Target is under 50 ms added to shell startup, and nothing running in the background.
 - **Safe by default.** Backups before every change, re-running never duplicates anything, and a broken config never breaks your shell.
-- **Honest limits.** If Terminal.app can't do something reliably, we say so instead of faking it.
+- **Honest limits.** If Terminal.app can't do something reliably, we say so.
 
 ---
 
 ## Roadmap
 
 - [ ] Installer with backup and restore
-- [ ] ZLE navigation, deletion and selection widgets
-- [ ] History search improvements
+- [ ] Five starting skins and the Skin Studio
+- [ ] Tab-to-accept suggestions and history search
+- [ ] Shift-select and ⌘ editing (pending feasibility)
 - [ ] Minimal Git prompt
-- [ ] First skin presets
 - [ ] `doctor` diagnostics
-- [ ] Homebrew tap and npm package
-- [ ] Settings UI that doesn't stay running in the background
+- [ ] npm package, Homebrew tap and curl installer
 - [ ] Adapters for other terminals (Ghostty, iTerm2)
-
----
 
 ## Uninstall
 
@@ -139,18 +182,11 @@ No `sudo`. No daemons. No other files.
 nativeshell uninstall
 ```
 
-This restores your original `~/.zshrc` and Terminal.app preferences from backup. If the command itself is missing:
-
-```sh
-zsh ~/.nativeshell/bin/nativeshell uninstall
-```
-
----
+This restores your original `~/.zshrc` and Terminal.app preferences. If the command is missing, run `zsh ~/.config/nativeshell/bin/nativeshell uninstall`.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please include your macOS version and the output of `nativeshell doctor` when reporting bugs.
+Issues and pull requests are welcome, especially new skins. Please include your macOS version and the output of `nativeshell doctor` when reporting bugs.
 
 ## License
 
-MIT © Boehmtech
