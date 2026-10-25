@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Native Shell Skin Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Fira+Code:wght@400;700&display=swap">
+    <style>
+        /* Layout: tool page. Header strip, then a two-column workbench: live Terminal.app preview + presets on the left, editing panel on the right. Stacks to one column on phones. */
+        :root {
+            --bg: #eef0f4;
+            --panel: #ffffff;
+            --fg: #1a1d26;
+            --muted: #5b6272;
+            --line: #dde1e8;
+            --accent: #3656d6;
+            --accent-soft: #e4e9fb;
+            --good: #23824a;
+            --warn: #a8640a;
+            --desk-a: #c9d3f2;
+            --desk-b: #e8d9ef;
+            --font-ui: "Geist", -apple-system, "Helvetica Neue", Arial, sans-serif;
+            --font-code: "JetBrains Mono", ui-monospace, Menlo, monospace;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0d0f14;
+                --panel: #161921;
+                --fg: #e3e6ee;
+                --muted: #8b93a4;
+                --line: #272b36;
+                --accent: #8aa2ff;
+                --accent-soft: #1f2640;
+                --good: #58c784;
+                --warn: #e3a64a;
+                --desk-a: #1d2a52;
+                --desk-b: #3a2346;
+                color-scheme: dark;
+            }
+        }
+
+        :root[data-theme="dark"] {
+            --bg: #0d0f14;
+            --panel: #161921;
+            --fg: #e3e6ee;
+            --muted: #8b93a4;
+            --line: #272b36;
+            --accent: #8aa2ff;
+            --accent-soft: #1f2640;
+            --good: #58c784;
+            --warn: #e3a64a;
+            --desk-a: #1d2a52;
+            --desk-b: #3a2346;
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--fg);
+            font-family: var(--font-ui);
+            font-size: 14px;
+            line-height: 1.5;
+            padding-left: max(16px, env(safe-area-inset-left, 0px));
+            padding-right: max(16px, env(safe-area-inset-right, 0px));
+            padding-block: 20px 40px;
+        }
+
+        .wrap {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px 24px;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 0;
+            letter-spacing: -0.01em;
+            text-wrap: balance;
+        }
+
+        h1 span {
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        header p {
+            margin: 0;
+            color: var(--muted);
+            max-width: 62ch;
+        }
+
+        .bench {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 380px;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 960px) {
+            .bench {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .left {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        /* Desk behind the window, so opacity and blur are visible */
+        .desk {
+            border-radius: 14px;
+            padding: clamp(14px, 3vw, 36px);
+            background:
+                radial-gradient(60% 80% at 15% 20%, var(--desk-a), transparent 70%),
+                radial-gradient(50% 70% at 85% 80%, var(--desk-b), transparent 70%),
+                var(--panel);
+            border: 1px solid var(--line);
+            position: relative;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .desk::before {
+            content: "~/code";
+            position: absolute;
+            right: 6%;
+            top: 14%;
+            font: 600 64px/1 var(--font-ui);
+            color: var(--fg);
+            opacity: .08;
+            pointer-events: none;
+        }
+
+        /* Mock Terminal.app window */
+        .win {
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, .35), 0 0 0 1px rgba(0, 0, 0, .25);
+        }
+
+        .titlebar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 12px;
+            background: color-mix(in srgb, var(--t-bg) 82%, #808080);
+            color: color-mix(in srgb, var(--t-fg) 70%, transparent);
+            font: 500 12px/1 var(--font-ui);
+        }
+
+        .dots {
+            display: flex;
+            gap: 7px;
+        }
+
+        .dots i {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .dots i:nth-child(1) {
+            background: #ff5f57;
+        }
+
+        .dots i:nth-child(2) {
+            background: #febc2e;
+        }
+
+        .dots i:nth-child(3) {
+            background: #28c840;
+        }
+
+        .titlebar .ttl {
+            flex: 1;
+            text-align: center;
+            margin-right: 50px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .term {
+            background: var(--t-bg-a);
+            color: var(--t-fg);
+            font-family: var(--t-font);
+            font-size: var(--t-size);
+            line-height: 1.32;
+            padding: 10px 12px 14px;
+            overflow-x: auto;
+            white-space: pre;
+            -webkit-backdrop-filter: var(--t-blur);
+            backdrop-filter: var(--t-blur);
+            min-height: 300px;
+        }
+
+        .term b {
+            color: var(--t-bold);
+            font-weight: 700;
+        }
+
+        .term .sel {
+            background: var(--t-sel);
+        }
+
+        .c0 {
+            color: var(--c0)
+        }
+
+        .c1 {
+            color: var(--c1)
+        }
+
+        .c2 {
+            color: var(--c2)
+        }
+
+        .c3 {
+            color: var(--c3)
+        }
+
+        .c4 {
+            color: var(--c4)
+        }
+
+        .c5 {
+            color: var(--c5)
+        }
+
+        .c6 {
+            color: var(--c6)
+        }
+
+        .c7 {
+            color: var(--c7)
+        }
+
+        .c8 {
+            color: var(--c8)
+        }
+
+        .c9 {
+            color: var(--c9)
+        }
+
+        .c10 {
+            color: var(--c10)
+        }
+
+        .c11 {
+            color: var(--c11)
+        }
+
+        .c12 {
+            color: var(--c12)
+        }
+
+        .c13 {
+            color: var(--c13)
+        }
+
+        .c14 {
+            color: var(--c14)
+        }
+
+        .c15 {
+            color: var(--c15)
+        }
+
+        .blk {
+            display: inline-block;
+            width: 3ch;
+        }
+
+        .cur {
+            color: var(--c8);
+        }
+
+        .cur.block {
+            background: var(--t-cursor);
+            color: var(--t-bg);
+        }
+
+        .cur.bar {
+            box-shadow: inset 2px 0 0 var(--t-cursor);
+        }
+
+        .cur.underline {
+            box-shadow: inset 0 -2px 0 var(--t-cursor);
+        }
+
+        .cur.blink {
+            animation: blink 1.05s steps(1) infinite;
+        }
+
+        @keyframes blink {
+            50% {
+                background: transparent;
+                box-shadow: none;
+                color: var(--c8);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .cur.blink {
+                animation: none;
+            }
+        }
+
+        .hint {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0;
+        }
+
+        /* Presets */
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 8px;
+        }
+
+        .presets {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .preset {
+            all: unset;
+            cursor: pointer;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .preset:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .preset[aria-pressed="true"] {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        .preset .mini {
+            border-radius: 6px;
+            padding: 8px 9px;
+            font: 11px/1.45 var(--font-code);
+            white-space: pre;
+            overflow: hidden;
+        }
+
+        .preset .nm {
+            font-weight: 500;
+            font-size: 13px;
+            padding: 0 2px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .preset .nm small {
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        /* Editing panel */
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel>section {
+            padding: 14px 16px;
+            border-top: 1px solid var(--line);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .panel>section:first-child {
+            border-top: 0;
+        }
+
+        .panel h2 {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0;
+        }
+
+        label.row {
+            display: grid;
+            grid-template-columns: 1fr auto 84px;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .row span {
+            color: var(--fg);
+        }
+
+        input[type="color"] {
+            width: 30px;
+            height: 24px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 0;
+            background: none;
+            cursor: pointer;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 2px;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 0;
+            border-radius: 4px;
+        }
+
+        input[type="text"],
+        select {
+            font: 12px var(--font-code);
+            color: var(--fg);
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 5px 7px;
+            width: 100%;
+            min-width: 0;
+        }
+
+        input[type="text"]:focus-visible,
+        select:focus-visible,
+        input[type="range"]:focus-visible,
+        input[type="color"]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+        }
+
+        .ansi {
+            display: grid;
+            grid-template-columns: auto repeat(8, minmax(0, 1fr));
+            gap: 6px 4px;
+            align-items: center;
+        }
+
+        .ansi .lab {
+            font-size: 11px;
+            color: var(--muted);
+            padding-right: 4px;
+        }
+
+        .ansi input[type="color"] {
+            width: 100%;
+            height: 26px;
+        }
+
+        .ansi .names {
+            font-size: 10px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .inline {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .inline>label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent);
+            min-width: 120px;
+        }
+
+        .val {
+            font: 12px var(--font-code);
+            color: var(--muted);
+            min-width: 4ch;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .seg {
+            display: inline-flex;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .seg button {
+            all: unset;
+            cursor: pointer;
+            padding: 5px 12px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .seg button+button {
+            border-left: 1px solid var(--line);
+        }
+
+        .seg button[aria-pressed="true"] {
+            background: var(--accent-soft);
+            color: var(--fg);
+            font-weight: 500;
+        }
+
+        .seg button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
+        }
+
+        .checks {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .check {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chip {
+            font: 600 11px/1 var(--font-ui);
+            padding: 4px 7px;
+            border-radius: 999px;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .chip.ok {
+            color: var(--good);
+            background: color-mix(in srgb, var(--good) 14%, transparent);
+        }
+
+        .chip.low {
+            color: var(--warn);
+            background: color-mix(in srgb, var(--warn) 16%, transparent);
+        }
+
+        .export {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .export pre {
+            margin: 0;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font: 11.5px/1.5 var(--font-code);
+            max-height: 260px;
+            overflow: auto;
+            color: var(--fg);
+        }
+
+        .btns {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            all: unset;
+            cursor: pointer;
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 13px;
+            border: 1px solid var(--line);
+            color: var(--fg);
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--panel);
+        }
+
+        .btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--good);
+            min-height: 1.5em;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="wrap">
+        <header>
+            <h1>Skin Studio <span>· Native Shell</span></h1>
+            <p>Pick a starting skin, adjust it, and copy the JSON into <code>skins/</code>. The preview approximates
+                Terminal.app; fonts fall back to the closest one your browser has.</p>
+        </header>
+
+        <div class="bench">
+            <div class="left">
+                <div class="desk">
+                    <div class="win" id="win">
+                        <div class="titlebar">
+                            <div class="dots"><i></i><i></i><i></i></div>
+                            <div class="ttl" id="ttl">aleem — nativeshell — zsh — 96×24</div>
+                        </div>
+                        <div class="term" id="term"></div>
+                    </div>
+                </div>
+                <p class="hint">The grey text on the last line is a history suggestion: <b>Tab</b> accepts it. It uses
+                    the “bright black” color, so check its contrast below.</p>
+                <div>
+                    <p class="section-label">Starting skins</p>
+                    <div class="presets" id="presets"></div>
+                </div>
+            </div>
+
+            <aside class="panel" aria-label="Edit skin">
+                <section>
+                    <h2>Name</h2>
+                    <input type="text" id="name" aria-label="Skin name">
+                </section>
+                <section id="base">
+                    <h2>Base colors</h2>
+                </section>
+                <section>
+                    <h2>ANSI colors</h2>
+                    <div class="ansi" id="ansi"></div>
+                </section>
+                <section>
+                    <h2>Font</h2>
+                    <select id="font" aria-label="Font family">
+                        <option value="sfmono">SF Mono (macOS default)</option>
+                        <option value="menlo">Menlo</option>
+                        <option value="monaco">Monaco</option>
+                        <option value="jetbrains">JetBrains Mono</option>
+                        <option value="plex">IBM Plex Mono</option>
+                        <option value="fira">Fira Code</option>
+                    </select>
+                    <div class="inline"><input type="range" id="size" min="10" max="20" step="1"
+                            aria-label="Font size"><span class="val" id="sizeVal"></span></div>
+                </section>
+                <section>
+                    <h2>Cursor</h2>
+                    <div class="inline">
+                        <div class="seg" id="cursor">
+                            <button type="button" data-v="block">Block</button>
+                            <button type="button" data-v="underline">Underline</button>
+                            <button type="button" data-v="bar">Bar</button>
+                        </div>
+                        <label><input type="checkbox" id="blink"> Blink</label>
+                    </div>
+                </section>
+                <section>
+                    <h2>Window</h2>
+                    <div class="inline"><span>Opacity</span><input type="range" id="opacity" min="50" max="100" step="1"
+                            aria-label="Background opacity"><span class="val" id="opVal"></span></div>
+                    <div class="inline"><label><input type="checkbox" id="blur"> Blur behind window</label></div>
+                </section>
+                <section>
+                    <h2>Readability</h2>
+                    <div class="checks" id="checks"></div>
+                </section>
+                <section class="export">
+                    <h2>Skin JSON</h2>
+                    <pre id="json"></pre>
+                    <div class="btns">
+                        <button type="button" class="btn primary" id="copy">Copy JSON</button>
+                        <button type="button" class="btn" id="reset">Reset to starting skin</button>
+                    </div>
+                    <div class="status" id="status" role="status"></div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        const PRESETS = {
+            midnight: {
+                name: "Midnight", note: "dark · cool",
+                colors: {
+                    background: "#11131a", text: "#d5d9e3", bold: "#ffffff", cursor: "#8ab4ff", selection: "#2b3552",
+                    ansi: ["#1d202b", "#e5707a", "#9ccc84", "#e8c47f", "#6aaef2", "#c387e0", "#5bbcc6", "#c9cdd6", "#6b7386", "#ff8b95", "#b8e69f", "#ffd895", "#8cc5ff", "#dba2f2", "#84d6de", "#ffffff"]
+                }
+            },
+            graphite: {
+                name: "Graphite", note: "dark · neutral",
+                colors: {
+                    background: "#1a1a1c", text: "#e2e2e0", bold: "#ffffff", cursor: "#f2b84b", selection: "#3a3a40",
+                    ansi: ["#2a2a2d", "#ef6b6b", "#8fd19e", "#f2c46d", "#7aa7f5", "#c79af2", "#6fd0d6", "#d6d6d4", "#76767d", "#ff8a8a", "#a9e3b5", "#ffd78e", "#9cc0ff", "#dcb6ff", "#93e2e7", "#fafafa"]
+                }
+            },
+            ember: {
+                name: "Ember", note: "dark · warm",
+                colors: {
+                    background: "#1c1512", text: "#ecdccb", bold: "#fff6ec", cursor: "#ff9e57", selection: "#4a3326",
+                    ansi: ["#2c221d", "#e0675a", "#a8c66c", "#e6b450", "#7fa4c9", "#c98bb8", "#74b6a6", "#d9c8b4", "#7d6c5f", "#ff8473", "#c2df86", "#ffcf6b", "#9fc0e2", "#e3a6d2", "#8fd1c0", "#fff3e6"]
+                }
+            },
+            fjord: {
+                name: "Fjord", note: "dark · teal",
+                colors: {
+                    background: "#0d1a1f", text: "#cfe3e6", bold: "#f2fbfc", cursor: "#5fd4c4", selection: "#1f3d45",
+                    ansi: ["#16282e", "#e57b7b", "#7fd18f", "#e8cd7a", "#63a8e0", "#b18ce6", "#4fc7c1", "#c3d6d9", "#5b7a82", "#ff9898", "#9ce8aa", "#ffe298", "#86c2f2", "#c9a8f5", "#74e0da", "#f2fbfc"]
+                }
+            },
+            paper: {
+                name: "Paper", note: "light",
+                colors: {
+                    background: "#f7f6f2", text: "#2b2d33", bold: "#000000", cursor: "#3463d6", selection: "#d8e2f7",
+                    ansi: ["#2b2d33", "#c2343f", "#2f8a4b", "#8f6200", "#2d5fd0", "#8e3fb0", "#1b7f8a", "#a9adb6", "#7a7e88", "#d8414c", "#37a058", "#a87400", "#4775e0", "#a656c9", "#2496a2", "#ffffff"]
+                }
+            },
+        };
+        const FONTS = {
+            sfmono: { css: '"SF Mono", ui-monospace, Menlo, monospace', mac: "SFMono-Regular" },
+            menlo: { css: 'Menlo, ui-monospace, monospace', mac: "Menlo-Regular" },
+            monaco: { css: 'Monaco, Menlo, ui-monospace, monospace', mac: "Monaco" },
+            jetbrains: { css: '"JetBrains Mono", Menlo, monospace', mac: "JetBrainsMono-Regular" },
+            plex: { css: '"IBM Plex Mono", Menlo, monospace', mac: "IBMPlexMono" },
+            fira: { css: '"Fira Code", Menlo, monospace', mac: "FiraCode-Regular" },
+        };
+        const BASE = [["background", "Background"], ["text", "Text"], ["bold", "Bold text"], ["cursor", "Cursor"], ["selection", "Selection"]];
+        const ANSI_NAMES = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+        const KEY = "nativeshell-skin-studio-v1";
+
+        const clone = o => JSON.parse(JSON.stringify(o));
+        function fromPreset(id) {
+            const p = PRESETS[id];
+            return {
+                preset: id, name: "NativeShell " + p.name, colors: clone(p.colors),
+                font: "sfmono", size: 13, cursor: "bar", blink: true, opacity: 100, blur: false
+            };
+        }
+        let state;
+        try { state = JSON.parse(localStorage.getItem(KEY)); } catch (e) { state = null; }
+        if (!state || !state.colors || !PRESETS[state.preset]) state = fromPreset("midnight");
+        function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { } }
+
+        const $ = id => document.getElementById(id);
+        const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        const P = (dir = "~/code/nativeshell") => `<span class="c4">${dir}</span> <span class="c5">main</span> <span class="c2">❯</span> `;
+
+        function termHTML() {
+            const cur = `<span class="cur ${state.cursor}${state.blink ? " blink" : ""}">m</span>`;
+            let blocks1 = "", blocks2 = "";
+            for (let i = 0; i < 8; i++) {
+                blocks1 += `<span class="blk" style="background:var(--c${i})"> </span>`;
+                blocks2 += `<span class="blk" style="background:var(--c${i + 8})"> </span>`;
+            }
+            return [
+                `Last login: Sun Oct 25 15:08:41 on ttys002`,
+                P() + `ls`,
+                `<span class="c4">bin/</span>  <span class="c4">lib/</span>  <span class="c4">skins/</span>  <span class="c4">test/</span>  <span class="c2">install.sh*</span>  README.md  package.json  <span class="c6">docs@</span>`,
+                P() + `git status -s`,
+                ` <span class="c3">M</span> lib/keys.zsh`,
+                ` <span class="c2">A</span> skins/midnight.json`,
+                `<span class="c1">??</span> skins/ember.json`,
+                P() + `nativeshell doctor`,
+                `<b>Native Shell 0.1.0</b>`,
+                `<span class="c2">✓</span> Terminal.app profile   ${esc(state.name)}`,
+                `<span class="c2">✓</span> zsh 5.9                <span class="sel">init.zsh loaded in 18 ms</span>`,
+                `<span class="c3">!</span> cmd keys               not delivered by Terminal.app`,
+                `<span class="c1">✗</span> config.json            line 12: trailing comma`,
+                P() + `gti push`,
+                `zsh: command not found: gti`,
+                P() + `nativeshell colors`,
+                `normal ${blocks1}`,
+                `bright ${blocks2}`,
+                P() + `git com${cur}<span class="c8">it -m "add ember skin"</span>`,
+            ].join("\n");
+        }
+
+        function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+        function lum(h) {
+            return hexToRgb(h).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); })
+                .reduce((a, v, i) => a + v * [.2126, .7152, .0722][i], 0);
+        }
+        function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+
+        function skinJSON() {
+            const id = state.name.toLowerCase().replace(/^nativeshell\s+/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom";
+            return {
+                id, name: state.name,
+                font: { name: FONTS[state.font].mac, size: state.size },
+                cursor: { shape: state.cursor, blink: state.blink },
+                window: { opacity: +(state.opacity / 100).toFixed(2), blur: state.blur },
+                colors: state.colors,
+            };
+        }
+
+        function render() {
+            const t = $("win").style, c = state.colors;
+            const [r, g, b] = hexToRgb(c.background);
+            t.setProperty("--t-bg", c.background);
+            t.setProperty("--t-bg-a", `rgba(${r},${g},${b},${state.opacity / 100})`);
+            t.setProperty("--t-fg", c.text);
+            t.setProperty("--t-bold", c.bold);
+            t.setProperty("--t-cursor", c.cursor);
+            t.setProperty("--t-sel", c.selection);
+            t.setProperty("--t-font", FONTS[state.font].css);
+            t.setProperty("--t-size", state.size + "px");
+            t.setProperty("--t-blur", state.blur ? "blur(14px)" : "none");
+            c.ansi.forEach((v, i) => t.setProperty("--c" + i, v));
+            $("term").innerHTML = termHTML();
+            $("ttl").textContent = `aleem — nativeshell — ${state.name} — 96×24`;
+
+            // panel values
+            $("name").value = state.name;
+            document.querySelectorAll("[data-path]").forEach(el => {
+                const v = get(el.dataset.path);
+                if (document.activeElement !== el) el.value = v;
+            });
+            $("font").value = state.font;
+            $("size").value = state.size; $("sizeVal").textContent = state.size + " pt";
+            $("opacity").value = state.opacity; $("opVal").textContent = state.opacity + "%";
+            $("blur").checked = state.blur; $("blink").checked = state.blink;
+            document.querySelectorAll("#cursor button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === state.cursor));
+            document.querySelectorAll(".preset").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === state.preset));
+
+            const checks = [
+                ["Text on background", ratio(c.text, c.background), 4.5],
+                ["Suggestion (bright black)", ratio(c.ansi[8], c.background), 3],
+                ["Directories (blue)", ratio(c.ansi[4], c.background), 4.5],
+                ["Text on selection", ratio(c.text, c.selection), 4.5],
+            ];
+            $("checks").innerHTML = checks.map(([l, r, min]) =>
+                `<div class="check"><span>${l}</span><span class="chip ${r >= min ? "ok" : "low"}">${r.toFixed(1)}:1 ${r >= min ? "readable" : "low"}</span></div>`).join("");
+            $("json").textContent = JSON.stringify(skinJSON(), null, 2);
+            save();
+        }
+
+        function get(path) { return path.split(".").reduce((o, k) => o[k], state); }
+        function set(path, v) { const ks = path.split("."); const last = ks.pop(); ks.reduce((o, k) => o[k], state)[last] = v; }
+
+        // Build base color rows
+        const baseEl = $("base");
+        BASE.forEach(([k, label]) => {
+            const row = document.createElement("label"); row.className = "row";
+            row.innerHTML = `<span>${label}</span><input type="color" id="col-${k}" data-path="colors.${k}" aria-label="${label} color"><input type="text" id="hex-${k}" data-path="colors.${k}" aria-label="${label} hex" maxlength="7" spellcheck="false">`;
+            baseEl.appendChild(row);
+        });
+        // Build ANSI grid
+        const ansiEl = $("ansi");
+        ansiEl.innerHTML = `<span></span>` + ANSI_NAMES.map(n => `<span class="names">${n}</span>`).join("");
+        ["normal", "bright"].forEach((lab, row) => {
+            ansiEl.insertAdjacentHTML("beforeend", `<span class="lab">${lab}</span>`);
+            for (let i = 0; i < 8; i++) {
+                const idx = row * 8 + i;
+                ansiEl.insertAdjacentHTML("beforeend", `<input type="color" id="ansi-${idx}" data-path="colors.ansi.${idx}" aria-label="${lab} ${ANSI_NAMES[i]}" title="${lab} ${ANSI_NAMES[i]}">`);
+            }
+        });
+        // Presets
+        $("presets").innerHTML = Object.entries(PRESETS).map(([id, p]) => {
+            const c = p.colors;
+            return `<button type="button" class="preset" data-id="${id}" aria-pressed="false">
+    <div class="mini" style="background:${c.background};color:${c.text}"><span style="color:${c.ansi[4]}">~/app</span> <span style="color:${c.ansi[5]}">main</span> <span style="color:${c.ansi[2]}">❯</span> ls
+<span style="color:${c.ansi[2]}">ok</span> <span style="color:${c.ansi[3]}">warn</span> <span style="color:${c.ansi[1]}">err</span></div>
+    <div class="nm">${p.name}<small>${p.note}</small></div></button>`;
+        }).join("");
+
+        // Events
+        document.addEventListener("input", e => {
+            const el = e.target;
+            if (el.dataset.path) {
+                let v = el.value.trim();
+                if (el.type === "text") { if (!/^#?[0-9a-fA-F]{6}$/.test(v)) return; if (v[0] !== "#") v = "#" + v; }
+                set(el.dataset.path, v.toLowerCase()); render();
+            } else if (el.id === "name") { state.name = el.value || "Untitled"; render(); }
+            else if (el.id === "size") { state.size = +el.value; render(); }
+            else if (el.id === "opacity") { state.opacity = +el.value; render(); }
+        });
+        document.addEventListener("change", e => {
+            const el = e.target;
+            if (el.id === "font") state.font = el.value;
+            else if (el.id === "blink") state.blink = el.checked;
+            else if (el.id === "blur") state.blur = el.checked;
+            else return;
+            render();
+        });
+        $("cursor").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { state.cursor = b.dataset.v; render(); } });
+        $("presets").addEventListener("click", e => {
+            const b = e.target.closest(".preset"); if (!b) return;
+            const keep = { font: state.font, size: state.size, cursor: state.cursor, blink: state.blink, opacity: state.opacity, blur: state.blur };
+            state = Object.assign(fromPreset(b.dataset.id), keep); render(); flash("");
+        });
+        $("reset").addEventListener("click", () => { state = fromPreset(state.preset); render(); flash("Reset to " + PRESETS[state.preset].name + "."); });
+        $("copy").addEventListener("click", () => {
+            const text = $("json").textContent;
+            try {
+                navigator.clipboard.writeText(text).then(() => flash("Copied. Save it as skins/" + skinJSON().id + ".json."), selectJSON);
+            } catch (err) { selectJSON(); }
+        });
+        function selectJSON() { const r = document.createRange(); r.selectNodeContents($("json")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); flash("Selected. Press ⌘C to copy."); }
+        let ft; function flash(msg) { $("status").textContent = msg; clearTimeout(ft); if (msg) ft = setTimeout(() => $("status").textContent = "", 4000); }
+
+        render();
+    </script>
+
+</body>
+
+</html>
