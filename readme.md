@@ -190,3 +190,4 @@ Issues and pull requests are welcome, especially new skins. Please include your 
 
 ## License
 
+MIT
